@@ -1,0 +1,10 @@
+componente,modelo,parametro,ns,condicion
+FF,SN74HC74,CLK_to_Q_max,44,"4.5 V, -40 a 85 C"
+NOT,SN74HC04,propagacion_max,24,"4.5 V, -40 a 85 C"
+AND,SN74HC08,propagacion_max,25,"4.5 V, -40 a 85 C"
+OR_1,SN74HC32,propagacion_max,25,"4.5 V, -40 a 85 C"
+OR_2,SN74HC32,propagacion_max,25,"4.5 V, -40 a 85 C"
+FF,SN74HC74,setup,25,"4.5 V, -40 a 85 C"
+FF,SN74HC74,hold,0,"4.5 V, -40 a 85 C"
+resultado,camino_Q1_D1,periodo_minimo_estimado,168,"sin skew ni interconexion"
+resultado,camino_Q1_D1,Fmax_MHz,5.95238,"estimacion, no global"
