@@ -1,190 +1,426 @@
-# FSM Parking System | Mealy + Moore on Basys 3
+# Sistema de estacionamiento con FPGA | FSM Mealy + Moore
 
-**FPGA implementation of a parking barrier controller using SystemVerilog, finite-state machines, switch input conditioning, and Vivado 2018.1.**
+**Diseño e implementación de un controlador de barrera de estacionamiento en SystemVerilog, desde su circuito lógico en Logisim Evolution hasta su funcionamiento en una FPGA Digilent Basys 3.**
 
-> Original circuit: Logisim Evolution | Target: Digilent Basys 3 (Artix-7 XC7A35T) | Design language: SystemVerilog | Physical clock: 100 MHz
+> **Placa:** Digilent Basys 3 | **FPGA:** Xilinx Artix-7 XC7A35T (`xc7a35tcpg236-1`) | **Herramientas:** Vivado 2018.1, XSim, Visual Studio Code y Digilent FPGA Utility | **Reloj físico:** 100 MHz
 
-![Elaborated RTL: input conditioning, Mealy/Moore FSM core and output ports](evidencias/fpga/02_rtl_elaborado.png)
+![Esquema RTL del controlador de estacionamiento](evidencias/fpga/02_rtl_elaborado.png)
 
-## Project overview
+## 1. Descripción del proyecto
 
-This project migrates a logic-gate parking barrier design from Logisim to synthesizable SystemVerilog and a physical Xilinx Artix-7 FPGA. It combines:
+Este proyecto implementa un sistema digital de control de acceso a un estacionamiento. La barrera se activa al ingresar la secuencia correcta **A -> C -> B** y utiliza una señal `SENSOR` para decidir cuándo puede comenzar a cerrarse. El diseño original se construyó con compuertas y registros en **Logisim Evolution**, se describió posteriormente en **SystemVerilog** y finalmente se sintetizó, implementó y programó en una **Basys 3**.
 
-- **Mealy FSM**: checks the A -> C -> B sequence and provides code/progress/alarm signals.
-- **Moore FSM**: controls CLOSED -> OPENING -> OPEN -> CLOSING -> CLOSED.
-- **Basys 3 interface**: two-flip-flop input synchronization, 20 ms debouncing, one-pulse events, reset synchronization, and a 4 Hz clock-enable for visible state transitions.
-- **Validation**: behavioral XSim simulation, elaborated RTL, synthesis, place-and-route, post-implementation timing analysis, bitstream generation, and successful physical FPGA programming with Digilent FPGA Utility.
+El sistema combina dos máquinas de estados finitos:
 
-The `SENSOR` signal is simulated with a switch; this project does **not** use an external car-detection sensor or a real barrier motor.
+- **FSM Mealy:** verifica la secuencia A -> C -> B, señala el avance de la contraseña y produce `CODIGO_OK` o `ALARMA` según las entradas.
+- **FSM Moore:** controla los cuatro estados de la barrera: `CERRADA`, `ABRIENDO`, `ABIERTA` y `CERRANDO`.
 
-## Hardware demo and verification
+Para poder usar interruptores reales en la FPGA se agregó una etapa de **sincronización de entradas, antirrebote, detección de eventos, sincronización de reset y habilitación de reloj lenta (Clock Enable)**.
 
-<p align="center"><img src="evidencias/fpga/08_basys3_fisica.jpg" width="400" alt="Physical Basys 3 board powered on after FPGA programming"></p>
+**Alcance físico:** los interruptores de la Basys 3 simulan el teclado y la presencia de un vehículo. Los LEDs muestran los estados. No se conectó un sensor automotriz externo, un motor ni un actuador de barrera.
 
-The bitstream `top_basys3.bit` was uploaded to the detected `XC7A35T` using Digilent FPGA Utility. The programming log reported `done in 2.113 sec`.
+## 2. Demostración física y resultados generales
 
-<p align="center"><img src="evidencias/fpga/07_programacion_exitosa.jpg" width="570" alt="Digilent FPGA Utility programming successful"></p>
+<p align="center">
+  <img src="evidencias/fpga/08_basys3_fisica.jpg" width="430" alt="Basys 3 encendida después de programar el controlador de estacionamiento">
+</p>
 
-**Implementation results (Vivado 2018.1, `top_basys3`, 100 MHz clock):**
+El archivo **`top_basys3.bit`** se cargó sobre la FPGA **XC7A35T** utilizando **Digilent FPGA Utility**. El registro de programación mostró `done in 2.113 sec`, confirmando la transferencia exitosa del bitstream. La placa también se probó manualmente; estas pruebas iniciales no sustituyen una verificación exhaustiva de todos los casos posibles.
 
-| Metric | Post-implementation result | Interpretation |
+<p align="center">
+  <img src="evidencias/fpga/07_programacion_exitosa.jpg" width="600" alt="Registro de programación exitosa de la Basys 3 en Digilent FPGA Utility">
+</p>
+
+### Resultados de temporización después de Implementation
+
+| Parámetro | Resultado | Interpretación |
 |:--|--:|:--|
-| Clock period constraint | 10.000 ns | 100 MHz input clock |
-| Setup WNS | **+5.669 ns** | Setup constraint met |
-| Setup TNS | **0.000 ns** | No aggregate negative setup slack |
-| Hold WHS | **+0.122 ns** | Hold constraint met |
-| Hold THS | **0.000 ns** | No aggregate negative hold slack |
-| Pulse-width slack | **+4.500 ns** | Clock pulse-width checks met |
-| Failing endpoints | **0** | No reported timing failures in the displayed summary |
-| Bitstream | **Generated** | Vivado `write_bitstream Complete` |
-| Physical programming | **Completed** | Digilent FPGA Utility detected Basys 3 |
+| Período del reloj | **10.000 ns** | Reloj físico de 100 MHz |
+| Setup WNS | **+5.669 ns** | Los caminos de setup analizados cumplen |
+| Setup TNS | **0.000 ns** | No se acumula slack negativo de setup |
+| Hold WHS | **+0.122 ns** | Los caminos de hold analizados cumplen |
+| Hold THS | **0.000 ns** | No se acumula slack negativo de hold |
+| Slack de ancho de pulso | **+4.500 ns** | Comprobación de ancho de pulso satisfecha |
+| Endpoints fallidos reportados | **0** | No se reportaron violaciones en el resumen mostrado |
+| Generación de bitstream | **Completada** | Vivado finalizó `write_bitstream` |
+| Programación física | **Completada** | Digilent FPGA Utility identificó la Basys 3 |
 
-![Post-implementation timing summary in Vivado](evidencias/fpga/06_timing_summary.png)
+![Resumen de temporización de Vivado para top_basys3](evidencias/fpga/06_timing_summary.png)
 
-**Timing scope:** These measurements belong to the *FPGA implementation*, not to discrete SN74HC chips. The XDC constrains the 100 MHz clock; it does not define external input/output delays. The positive slack therefore proves that the *reported constrained timing paths* meet the applied constraints, not that all board-level timing has been characterized.
+**Cómo interpretar el timing:** un WNS positivo indica margen favorable respecto al límite de setup definido; un WHS positivo indica margen favorable respecto al límite de hold en los caminos analizados. El archivo XDC establece el reloj de 100 MHz, pero no incluye retardos externos de entrada/salida. Por lo tanto, estos resultados **validan los caminos restringidos que reportó Vivado**, no todos los tiempos de una instalación de estacionamiento real.
 
-The repository's earlier discrete-gate analysis estimated **5.952 MHz** for one SN74HC74/04/08/32 feedback path; this is a separate, analytical calculation and must not be compared as the same hardware implementation. See [legacy timing analysis](docs/ANALISIS_TEMPORAL_SN74HC.md).
-
-## Design architecture
+## 3. Arquitectura del sistema
 
 ```mermaid
 flowchart LR
-    SW["SW0 A / SW1 B / SW2 C"] --> DB["2-FF sync + 20 ms debounce"]
-    DB --> KEY["One-pulse + pending events"]
-    CLK["CLK 100 MHz"] --> CE["Clock-enable: 4 Hz"]
-    KEY --> CORE["top: Mealy + Moore FSMs"]
-    CE --> CORE
-    SENSOR["SW3: simulated car sensor"] --> SDB["Synchronizer + debounce"]
-    SDB --> CORE
-    RESET["BTN_CENTER: Reset"] --> RS["Async assert / sync release"]
-    RS --> CORE
-    CORE --> LED["LED0..LED9: state and diagnostics"]
+    S["SW0=A, SW1=B, SW2=C"] --> D["Sincronizador de 2 FF + antirrebote de 20 ms"]
+    D --> P["Un pulso por evento + eventos pendientes"]
+    R["Reloj de 100 MHz"] --> CE["Clock Enable a 4 Hz"]
+    P --> F["Núcleo: Mealy + Moore"]
+    CE --> F
+    SE["SW3: presencia simulada"] --> SD["Sincronización + antirrebote"]
+    SD --> F
+    RE["BTN_C: reset"] --> RS["Aserción asíncrona / liberación sincrónica"]
+    RS --> F
+    F --> L["LED0 a LED9: estados y diagnóstico"]
 ```
 
-The `tick_enable` module does **not** generate a new physical clock: it creates a one-cycle `CE` pulse on the same 100 MHz clock domain. The FSMs advance at approximately **4 updates/second (250 ms per update)**. Debounced button/switch events are held until the next update and then consumed once. Several keys pressed within one interval are not queued in order; enter A, C, and B separately.
+### 3.1. Por qué agregamos un antirrebote
 
-## State machines
+Los interruptores y pulsadores mecánicos pueden producir transiciones eléctricas no deseadas durante su accionamiento. Sin filtrado, una sola entrada puede interpretarse varias veces. El módulo `debounce_onepulse.sv` estabiliza la señal y genera un evento único por activación. Además, un sincronizador de dos flip-flops reduce el riesgo de problemas al incorporar señales externas al dominio de reloj de la FPGA.
 
-| FSM | Binary state | Meaning |
+El antirrebote está configurado a **20 ms**. A 100 MHz, ese intervalo equivale aproximadamente a:
+
+$$
+N_{\mathrm{antirrebote}} = 100\times10^6\,\frac{\mathrm{ciclos}}{\mathrm{s}}\times 0.020\,\mathrm{s} = 2{,}000{,}000\ \mathrm{ciclos}
+$$
+
+### 3.2. Divisor de frecuencia mediante Clock Enable
+
+El módulo `tick_enable.sv` **no crea un segundo reloj físico**: mantiene el dominio de 100 MHz y produce una señal `CE` que se activa durante un ciclo cada 250 ms. De esta manera, las FSM avanzan aproximadamente cuatro veces por segundo y las transiciones se pueden observar en los LEDs.
+
+$$
+N_{\mathrm{CE}} = \frac{f_{CLK}}{f_{CE}} = \frac{100{,}000{,}000}{4} = 25{,}000{,}000\ \mathrm{ciclos}
+$$
+
+$$
+T_{\mathrm{CE}} = \frac{1}{4\ \mathrm{Hz}} = 0.25\ \mathrm{s} = 250\ \mathrm{ms}
+$$
+
+Los eventos de tecla se mantienen pendientes hasta la siguiente habilitación y se consumen una sola vez. **Si se activan varias letras dentro del mismo intervalo de 250 ms, no se garantiza conservar su orden**; por ello, el código debe introducirse letra por letra.
+
+### 3.3. Organización de los módulos
+
+| Archivo | Responsabilidad |
+|:--|:--|
+| `hdl/src/top_basys3.sv` | Módulo superior conectado a las entradas/salidas físicas de la Basys 3 |
+| `hdl/src/top.sv` | Integra las FSM Mealy y Moore |
+| `hdl/src/mealy.sv` | Verificación de A -> C -> B y señales de alarma/progreso |
+| `hdl/src/moore.sv` | Control de los cuatro estados de la barrera |
+| `hdl/src/debounce_onepulse.sv` | Sincronización, filtrado de rebote y generación de pulsos |
+| `hdl/src/tick_enable.sv` | Habilitación de avance a 4 Hz sin generar otro reloj |
+| `hdl/src/reset_sync.sv` | Aserción asíncrona y liberación sincronizada de reset |
+| `hdl/constraints/basys3.xdc` | Asignación de pines físicos y restricción del reloj |
+
+## 4. Diseño de las máquinas de estados
+
+### 4.1. FSM Mealy: validación del código
+
+La máquina Mealy reconoce la secuencia **A, después C y finalmente B**. Sus salidas combinacionales dependen tanto del estado como de las entradas presentes.
+
+| Estado | Codificación | Significado |
 |:--|:--:|:--|
-| Mealy | `00` | Waiting for A |
-| Mealy | `01` | A accepted; waiting for C |
-| Mealy | `10` | A,C accepted; waiting for B |
-| Moore | `00` | CERRADA (closed) |
-| Moore | `01` | ABRIENDO (opening) |
-| Moore | `10` | ABIERTA (open) |
-| Moore | `11` | CERRANDO (closing) |
+| Espera | `00` | Aún no se ha introducido A |
+| Paso 1 | `01` | Se aceptó A; falta C |
+| Paso 2 | `10` | Se aceptaron A y C; falta B |
 
-Once the A -> C -> B sequence is accepted, the Moore FSM starts opening. SW3 is used as a **vehicle-presence simulation**: `1` keeps the barrier open and `0` allows the closing sequence.
+Al reconocer B en el estado correspondiente, la señal `CODIGO_OK` habilita el cambio de estado de la FSM Moore. La salida `ALARMA` identifica combinaciones no permitidas definidas en la lógica original. Las señales `PASO_1` y `PASO_2` permiten observar el avance del código.
 
-## Basys 3 pin map
+### 4.2. FSM Moore: control de la barrera
 
-| Input | Pin | Physical component | Output | Pin | Physical component |
+La máquina Moore utiliza cuatro estados codificados con dos bits. Sus salidas dependen del estado almacenado:
+
+| Estado | Codificación (`Q1 Q0`) | LED principal | Significado |
+|:--|:--:|:--|:--|
+| `CERRADA` | `00` | LD0 | Barrera en reposo, esperando un código correcto |
+| `ABRIENDO` | `01` | LD1 | Inicio del movimiento de apertura |
+| `ABIERTA` | `10` | LD2 | Barrera abierta |
+| `CERRANDO` | `11` | LD3 | Movimiento de cierre |
+
+Tras validar A -> C -> B, la FSM Moore inicia la apertura. `SENSOR = 1` representa la presencia de un vehículo y permite mantener la barrera abierta; `SENSOR = 0` permite comenzar el cierre. Las transiciones se muestran mediante LEDs, no mediante un motor.
+
+## 5. Análisis temporal con componentes reales de DigiKey
+
+### 5.1. Objetivo y contexto
+
+Antes de implementar el diseño en la FPGA se analizó una ruta secuencial de la **FSM Moore del circuito original de Logisim** usando componentes discretos de la familia **SN74HC** de Texas Instruments, comercializados por distribuidores como **DigiKey**.
+
+El propósito era estimar el período mínimo permitido por la restricción de **setup**, la **frecuencia máxima aproximada** de esa ruta y comprobar la condición de **hold** bajo hipótesis explícitas. Este análisis de compuertas reales **no es el timing de la FPGA**.
+
+### 5.2. Componentes seleccionados
+
+| Componente | Referencia de Texas Instruments | Función en la ruta | Dato temporal utilizado |
+|:--|:--|:--|:--|
+| Flip-flop tipo D | **SN74HC74N** | Registros de estado | `CLK -> Q` máx.: 44 ns; setup: 25 ns; hold: 0 ns |
+| Inversor NOT | **SN74HC04N** | Negación de Q1 | Retardo de propagación máx.: 24 ns |
+| Compuerta AND de 2 entradas | **SN74HC08N** | Función lógica intermedia | Retardo de propagación máx.: 25 ns |
+| Compuerta OR de 2 entradas | **SN74HC32N** | Combinación de términos | Retardo de propagación máx.: 25 ns por etapa |
+
+**Condiciones de referencia:** alimentación de 4.5 V y el intervalo de temperatura indicado en las hojas de datos empleadas en el análisis original (de -40 a 85 grados Celsius). Las cifras dependen de las condiciones de carga y de ensayo de cada ficha técnica. No se modelaron los retardos del cableado ni se midió el skew real del reloj.
+
+**Consulta de componentes y hojas de datos:**
+
+- **SN74HC74N (flip-flop D):** [hoja de datos de TI](https://www.ti.com/lit/gpn/sn74hc74) y [búsqueda en DigiKey](https://www.digikey.com/en/products?keywords=SN74HC74N).
+- **SN74HC04N (NOT):** [hoja de datos de TI](https://www.ti.com/lit/ds/symlink/sn74hc04.pdf) y [búsqueda en DigiKey](https://www.digikey.com/en/products?keywords=SN74HC04N).
+- **SN74HC08N (AND):** [hoja de datos de TI](https://www.ti.com/lit/gpn/sn74hc08) y [búsqueda en DigiKey](https://www.digikey.com/en/products?keywords=SN74HC08N).
+- **SN74HC32N (OR):** [hoja de datos de TI](https://www.ti.com/lit/gpn/sn74hc32) y [búsqueda en DigiKey](https://www.digikey.com/en/products?keywords=SN74HC32N).
+
+Estas referencias permiten reproducir el cálculo y consultar las condiciones completas de los retardos utilizados. No se presupone disponibilidad actual ni precio de inventario.
+
+### 5.3. Camino secuencial seleccionado
+
+Se analizó el camino de realimentación **Q1 -> D1** de la máquina Moore:
+
+```text
+Flip-flop de origen Q1
+  -> NOT
+  -> AND
+  -> OR
+  -> OR
+  -> Flip-flop de destino D1
+```
+
+El circuito original contenía una función OR de tres entradas. Para implementarla con el **SN74HC32N**, que tiene compuertas OR de dos entradas, se consideraron **dos niveles OR en cascada**. Se trata de una suposición conservadora para la rama seleccionada, no de una medición física del circuito completo.
+
+#### Evidencia del circuito original
+
+![Compuertas de la FSM Moore en Logisim](evidencias/logica_moore.png)
+
+![Registros Q1 y Q0 de la FSM Moore en Logisim](evidencias/registros_moore.png)
+
+### 5.4. Restricción de Setup Time
+
+El **tiempo de setup** es el intervalo mínimo durante el cual la entrada D del flip-flop de destino debe permanecer estable **antes** del flanco activo de reloj. Para que la ruta funcione, el período del reloj debe ser suficiente para que el dato salga del registro de origen, atraviese la lógica combinacional y llegue a tiempo al registro de destino.
+
+Con skew de reloj supuesto igual a cero:
+
+$$
+T_{CLK} \geq t_{CQ,\max} + t_{PD,\max} + t_{setup}
+$$
+
+En el camino seleccionado, el retardo combinacional incluye NOT, AND y dos niveles OR:
+
+$$
+T_{CLK} \geq t_{CQ,\max} + t_{NOT,\max} + t_{AND,\max} + 2t_{OR,\max} + t_{setup}
+$$
+
+**Sustitución numérica:**
+
+$$
+T_{CLK} \geq 44 + 24 + 25 + 2(25) + 25\ \mathrm{ns}
+$$
+
+$$
+T_{CLK} \geq 44 + 24 + 25 + 50 + 25 = 168\ \mathrm{ns}
+$$
+
+$$
+\boxed{T_{CLK,\min} \approx 168\ \mathrm{ns}}
+$$
+
+**Interpretación:** bajo las condiciones de referencia y las hipótesis de esta ruta, un reloj con un período inferior a 168 ns podría provocar que el dato llegue demasiado tarde y viole setup.
+
+### 5.5. Frecuencia máxima estimada
+
+La frecuencia es el inverso del período. Por tanto:
+
+$$
+F_{\max} = \frac{1}{T_{CLK,\min}}
+$$
+
+$$
+F_{\max} = \frac{1}{168\times10^{-9}\ \mathrm{s}}
+$$
+
+$$
+\boxed{F_{\max,\mathrm{ruta}} \approx 5.952\ \mathrm{MHz}}
+$$
+
+Este valor corresponde **únicamente al camino SN74HC Q1 -> D1** analizado. No certifica la frecuencia máxima global del conjunto Mealy + Moore: para eso habría que revisar todos los caminos secuenciales y sus condiciones eléctricas.
+
+### 5.6. Restricción de Hold Time
+
+El **tiempo de hold** indica cuánto tiempo debe permanecer estable la entrada D **después** del flanco activo del reloj. Una ruta demasiado rápida puede causar una violación incluso si se cumple setup.
+
+La condición general es:
+
+$$
+t_{CQ,\min} + t_{CD,\min} \geq t_{hold} + t_{skew}
+$$
+
+Donde:
+
+- $t_{CQ,\min}$: retardo mínimo desde CLK hasta Q del flip-flop de origen.
+- $t_{CD,\min}$: retardo mínimo de contaminación de la ruta combinacional.
+- $t_{hold}$: tiempo de retención exigido por el flip-flop de destino.
+- $t_{skew}$: diferencia de llegada del reloj entre captura y lanzamiento, con la convención usada en esta expresión.
+
+Para el análisis original se tomaron $t_{hold}=0\ \mathrm{ns}$ y $t_{skew}=0\ \mathrm{ns}$. Entonces:
+
+$$
+t_{CQ,\min} + t_{CD,\min} \geq 0
+$$
+
+Considerando retardos físicos no negativos, la desigualdad se cumple **bajo esas hipótesis**. Sin embargo, como no se dispone de todos los valores mínimos garantizados ni del skew medido, **no se puede establecer un margen numérico positivo ni certificar hold en una placa construida con esos componentes**.
+
+### 5.7. Diferencia entre DigiKey/SN74HC y la FPGA
+
+| Aspecto | Implementación discreta con SN74HC | Implementación FPGA Artix-7 |
+|:--|:--|:--|
+| Tecnología | Flip-flops y compuertas comerciales | LUTs, flip-flops internos y enrutamiento FPGA |
+| Herramienta de evaluación | Hojas de datos y cálculo de ruta | Vivado 2018.1 Timing Analysis |
+| Período | Mínimo estimado: **168 ns** para la ruta | Restricción aplicada: **10 ns** |
+| Frecuencia | **5.952 MHz**, aproximación de la ruta | **100 MHz** de reloj físico verificado según restricciones |
+| Setup | Estimado a partir de retardos máximos | **WNS +5.669 ns** |
+| Hold | Condición analítica bajo supuestos | **WHS +0.122 ns** |
+| Cobertura | Una ruta seleccionada | Caminos restringidos analizados por Vivado |
+
+**No son frecuencias máximas comparables:** 5.952 MHz es una estimación de una ruta construida con componentes discretos; 100 MHz es la frecuencia **configurada y verificada** en la implementación FPGA, no una medida de la frecuencia máxima absoluta del dispositivo.
+
+La explicación original ampliada también se conserva en [Análisis temporal SN74HC](docs/ANALISIS_TEMPORAL_SN74HC.md) y los datos tabulados en [`analisis/retardos.csv`](analisis/retardos.csv).
+
+## 6. Conexiones de la Basys 3 (archivo XDC)
+
+| Entrada | Pin FPGA | Componente físico | Salida | Pin FPGA | Indicador |
 |:--|:--|:--|:--|:--|:--|
-| `CLK` | W5 | 100 MHz oscillator | `CERRADA` | U16 | LD0 |
-| `RST` | U18 | BTN_C | `ABRIENDO` | E19 | LD1 |
+| `CLK` | W5 | Oscilador de 100 MHz | `CERRADA` | U16 | LD0 |
+| `RST` | U18 | Botón central BTN_C | `ABRIENDO` | E19 | LD1 |
 | `A` | V17 | SW0 | `ABIERTA` | U19 | LD2 |
 | `B` | V16 | SW1 | `CERRANDO` | V19 | LD3 |
 | `C` | W16 | SW2 | `CODIGO_OK` | W18 | LD4 |
 | `SENSOR` | W17 | SW3 | `ALARMA` | U15 | LD5 |
-|  |  |  | `PASO_1` | U14 | LD6 |
-|  |  |  | `PASO_2` | V14 | LD7 |
-|  |  |  | `Q0` | V13 | LD8 |
-|  |  |  | `Q1` | V3 | LD9 |
+| | | | `PASO_1` | U14 | LD6 |
+| | | | `PASO_2` | V14 | LD7 |
+| | | | `Q0` | V13 | LD8 |
+| | | | `Q1` | V3 | LD9 |
 
-**Physical test:** set SW0-SW2 low; press BTN_C; set SW3 high; toggle SW0 high/low (A), SW2 high/low (C), and SW1 high/low (B), leaving at least ~0.5 s between letters. The barrier should move from LD0 (closed) through LD1 (opening) to LD2 (open). Set SW3 low to allow closing (LD3, then LD0). `CODIGO_OK` can be a brief pulse and may not be visually obvious on an LED.
+### Prueba manual de apertura y cierre
 
-## Source tree
+1. Colocar **SW0, SW1 y SW2 en 0** y presionar brevemente **BTN_C** para reiniciar.
+2. Colocar **SW3 en 1** para simular que el vehículo está en el paso de la barrera.
+3. Subir y bajar **SW0 (A)** y esperar al menos medio segundo.
+4. Subir y bajar **SW2 (C)** y esperar al menos medio segundo.
+5. Subir y bajar **SW1 (B)** y observar la secuencia **LD0 -> LD1 -> LD2**.
+6. Colocar **SW3 en 0** para permitir el cierre; deben aparecer los estados de **LD3** y posteriormente **LD0**.
+
+`CODIGO_OK` puede durar muy poco y no siempre ser visible a simple vista en LD4. SW3 **simula** el sensor: no hay detector de automóviles externo instalado.
+
+## 7. Estructura del repositorio
 
 ```text
 FSM-Parking-Verylog/
-├── README.md                         # Project overview + figures
-├── .gitignore                        # Excludes local Vivado output
-├── FSM-Parking-Verylog.code-workspace
-├── .vscode/                          # VS Code workspace tasks/settings
-├── circuito/                         # Original Logisim circuit (already in repo)
-├── analisis/                         # SN74HC timing spreadsheet (already in repo)
-├── evidencias/
-│   ├── logica_moore.png              # Original evidence (already in repo)
-│   ├── registros_moore.png           # Original evidence (already in repo)
-│   └── fpga/                         # XSim, RTL, synthesis, routing, timing, hardware
-├── hdl/
-│   ├── src/
-│   │   ├── top_basys3.sv             # Physical FPGA top
-│   │   ├── top.sv                    # Mealy/Moore core
-│   │   ├── mealy.sv / moore.sv
-│   │   ├── tick_enable.sv
-│   │   ├── debounce_onepulse.sv
-│   │   └── reset_sync.sv
-│   ├── sim/
-│   │   ├── testbench.sv
-│   │   └── testbench_basys3.sv
-│   └── constraints/basys3.xdc
-└── docs/
-    ├── EVIDENCIAS_FPGA.md
-    ├── ANALISIS_TEMPORAL_SN74HC.md
-    └── GUIA_VIVADO_GITHUB.md
+|-- README.md                          # Documento principal, en español
+|-- .gitignore                         # Ignora salidas locales de Vivado
+|-- FSM-Parking-Verylog.code-workspace # Espacio de trabajo VS Code
+|-- .vscode/                           # Configuración del editor
+|-- circuito/                          # Circuito original de Logisim
+|-- analisis/                          # Datos del estudio SN74HC
+|   `-- retardos.csv
+|-- evidencias/
+|   |-- logica_moore.png
+|   |-- registros_moore.png
+|   `-- fpga/
+|       |-- 01_simulacion_xsim.png
+|       |-- 02_rtl_elaborado.png
+|       |-- 03_implantacion_fpga.png
+|       |-- 04_dispositivo_vivado.png
+|       |-- 05_sintesis_completada.png
+|       |-- 06_timing_summary.png
+|       |-- 07_programacion_exitosa.jpg
+|       |-- 08_basys3_fisica.jpg
+|       `-- 09_utilizacion_version_inicial.png
+|-- hdl/
+|   |-- src/
+|   |   |-- top_basys3.sv
+|   |   |-- top.sv
+|   |   |-- mealy.sv
+|   |   |-- moore.sv
+|   |   |-- debounce_onepulse.sv
+|   |   |-- tick_enable.sv
+|   |   `-- reset_sync.sv
+|   |-- sim/
+|   |   |-- testbench.sv
+|   |   `-- testbench_basys3.sv
+|   `-- constraints/
+|       `-- basys3.xdc
+|-- scripts/
+`-- docs/
+    |-- ANALISIS_TEMPORAL_SN74HC.md
+    |-- EVIDENCIAS_FPGA.md
+    |-- GUIA_VIVADO_GITHUB.md
+    |-- RESUMEN_ES.md
+    `-- CHECKLIST_ENTREGA.md
 ```
 
-The files under `circuito/`, `analisis/` and the two original evidence images already exist on GitHub; **retain them** when copying this update over an existing clone.
+**Importante:** el circuito `circuito/barrera_codigo(1).circ`, los datos `analisis/` y las imágenes de la Moore forman parte del trabajo original. Se conservan para mostrar la evolución completa del proyecto.
 
-## Reproduce in Vivado 2018.1
+## 8. Cómo reproducir el proyecto en Vivado 2018.1
 
-1. Clone this repository and open its folder in **Visual Studio Code** (`code .`).
-2. Launch **Vivado 2018.1** and create/open an RTL project for `xc7a35tcpg236-1`.
-3. Add all files in `hdl/src/` as **Design Sources**. Set `top_basys3` as the **synthesis top**.
-4. Add `hdl/sim/testbench_basys3.sv` as **Simulation Sources** and set `testbench_basys3` as **simulation top**.
-5. Add `hdl/constraints/basys3.xdc` as the **only active copy** of those pin constraints.
-6. Run **Behavioral Simulation** and enter `run all` in the simulator Tcl console; check for the expected `PASS` message. A visible waveform alone is not proof that all assertions completed.
-7. Run **RTL Analysis -> Synthesis -> Implementation -> Report Timing Summary -> Generate Bitstream**.
-8. Connect the Basys 3 over PROG/UART USB. Load `top_basys3.bit` via **Digilent FPGA Utility** (used successfully) or Vivado Hardware Manager if detected.
+1. Clonar el repositorio y abrir la carpeta en **Visual Studio Code** con `code .`.
+2. Abrir **Vivado 2018.1** y crear un proyecto RTL para `xc7a35tcpg236-1`.
+3. Agregar todos los archivos de `hdl/src/` como **Design Sources**; marcar **`top_basys3` como Top** para síntesis.
+4. Agregar `hdl/sim/testbench_basys3.sv` en **Simulation Sources**, como **Top de simulación**.
+5. Agregar `hdl/constraints/basys3.xdc` como el **único archivo activo** con estas asignaciones de pines, para evitar restricciones duplicadas.
+6. Ejecutar **Run Simulation -> Run Behavioral Simulation**; en la consola Tcl del simulador ejecutar `run all` y verificar el resultado final del testbench. Ver las ondas por sí solas no prueba que todas las aserciones hayan pasado.
+7. Ejecutar **RTL Analysis -> Run Synthesis -> Run Implementation -> Report Timing Summary -> Generate Bitstream**.
+8. Conectar la Basys 3 por el puerto USB **PROG/UART** y cargar `top_basys3.bit` con **Digilent FPGA Utility** (método con el que se logró programar la placa), o con Vivado Hardware Manager si detecta JTAG.
 
-For screenshots and what each one demonstrates, see **[FPGA evidence and interpretation](docs/EVIDENCIAS_FPGA.md)** or **[Spanish summary](docs/RESUMEN_ES.md)**. For setup and Git workflow, see **[Vivado + VS Code guide](docs/GUIA_VIVADO_GITHUB.md)**.
+Para instrucciones más detalladas, consultar [Guía de Vivado y VS Code](docs/GUIA_VIVADO_GITHUB.md) y [Evidencias FPGA](docs/EVIDENCIAS_FPGA.md).
 
-## Evidence
+## 9. Evidencias y explicación de las capturas
 
-### Behavioral simulation (XSim)
+### 9.1. Simulación funcional (XSim)
 
-![XSim waveform of FSM parking signals](evidencias/fpga/01_simulacion_xsim.png)
+![Formas de onda de XSim](evidencias/fpga/01_simulacion_xsim.png)
 
-This screenshot displays `CLK`, `SENSOR`, `A`, and the barrier signals during a limited simulation interval. The FSM is initially in `CERRADA`; to demonstrate the complete A -> C -> B behavior, run `run all` and capture the testbench's final `PASS` output.
+Se observan las señales de reloj, reset y entradas del sistema en una parte de la simulación. El testbench permite comprobar la secuencia A -> C -> B y la activación de las salidas de la barrera. Esta imagen corresponde a un **intervalo parcial**: para certificar la verificación automatizada completa se debe guardar también la salida final `PASS` de la consola XSim.
 
-### RTL analysis: elaboration
+### 9.2. Análisis RTL (elaboración)
 
-![RTL integration hierarchy](evidencias/fpga/02_rtl_elaborado.png)
+![Esquema RTL elaborado](evidencias/fpga/02_rtl_elaborado.png)
 
-The elaborated RTL contains the input synchronizers, one-shot/debounce filters, clock-enable generator, reset synchronizer, and the core Mealy/Moore FSM modules. This is a logic connectivity diagram rather than a routed physical netlist.
+La imagen muestra la conexión entre el acondicionamiento de entradas, el generador de Clock Enable, el módulo de reset y el núcleo Mealy/Moore. Esta vista representa la **estructura lógica** generada por Vivado antes de la distribución física; no es el plano de ubicación de las celdas en la FPGA.
 
-### Synthesis
+### 9.3. Síntesis (Synthesis)
 
-![Synthesis complete in Vivado](evidencias/fpga/05_sintesis_completada.png)
+![Finalización de Synthesis en Vivado](evidencias/fpga/05_sintesis_completada.png)
 
-Vivado reported `Synthesis successfully completed`. Synthesis transformed the SystemVerilog modules into a device-dependent logic netlist. The screenshot validates completion, but does not provide an updated LUT/FF breakdown; obtain that separately from **Report Utilization**.
+Vivado confirmó `Synthesis successfully completed`. La síntesis traduce las descripciones SystemVerilog a una red de recursos lógicos apropiados para la familia Artix-7. El mensaje verifica que **terminó esa etapa**, pero no informa en esta captura cuántas LUTs y flip-flops ocupa la versión final; esos valores deben obtenerse de **Report Utilization**.
 
-### Implementation: placement and routing
+### 9.4. Implementation: colocación y enrutamiento
 
-![Implementation device view](evidencias/fpga/03_implantacion_fpga.png)
+![Vista del dispositivo en Implementation](evidencias/fpga/03_implantacion_fpga.png)
 
-The Artix-7 device view shows clock regions and highlighted mapped resources. Implementation assigns resources to positions in the FPGA and routes signals between them. A [second device-view capture](evidencias/fpga/04_dispositivo_vivado.png) is included as supporting evidence.
+En la vista de la Artix-7 se observan las regiones del dispositivo y recursos resaltados. **Implementation** realiza la colocación de los elementos sintetizados en recursos físicos de la FPGA y el enrutamiento de sus interconexiones. El proyecto conserva una [segunda vista del dispositivo](evidencias/fpga/04_dispositivo_vivado.png).
 
-### Timing and bitstream
+### 9.5. Timing Analysis y generación del bitstream
 
-![Vivado implementation timing](evidencias/fpga/06_timing_summary.png)
+![Análisis de temporización después de Implementation](evidencias/fpga/06_timing_summary.png)
 
-The timing summary shows +5.669 ns setup WNS and +0.122 ns hold WHS with zero reported failing endpoints. The successful `top_basys3.bit` upload is documented earlier on this page and in [the evidence details](docs/EVIDENCIAS_FPGA.md).
+El reporte muestra **WNS +5.669 ns**, **WHS +0.122 ns** y ningún endpoint fallido reportado. Estos valores indican que el diseño satisfizo las restricciones de temporización analizadas por Vivado a **100 MHz**. Posteriormente se generó el archivo `top_basys3.bit` y su carga en la Basys 3 quedó documentada en las fotos de la sección 2.
 
-## Constraints and limitations
+### 9.6. Diferencia con la utilización de la versión inicial
 
-- Physical switches are used as keyboard inputs and a vehicle-presence sensor emulator; there is **no external sensor, actuator or motor driver**.
-- Input stabilization and one-shot key capture reduce human-input issues, but cannot guarantee an ordering when several keys arrive within the same 250 ms window.
-- The testbench uses reduced divider/debounce parameters to simulate quickly; it does not run 100 million cycles/second in simulation.
-- The XSim screenshot records only a *time slice* and does not itself establish that the whole testbench printed `PASS`.
-- Do not report the old **10 LUT / 4 FF** utilization figure as the updated design's usage: it belonged to the initial design without the input-conditioning modules. Obtain the latest values with `Report Utilization` for `top_basys3`.
-- The bitstream is programmed into volatile configuration memory; reprogram after power cycling unless boot flash is configured separately.
+![Recursos ocupados por la primera versión sin antirrebote](evidencias/fpga/09_utilizacion_version_inicial.png)
 
-## Credits and references
+La versión original sin acondicionamiento de entradas utilizaba **10 LUTs y 4 flip-flops**. La versión implementada con `top_basys3` integra contadores y filtros adicionales, por lo que **no se deben reutilizar** aquellos valores como si pertenecieran a la versión final. Para conocer el uso real de recursos actualizado, abrir **Report Utilization** después de Synthesis o Implementation con `top_basys3` como Top.
 
-- Project repository: [Josemedinan/FSM-Parking-Verylog](https://github.com/Josemedinan/FSM-Parking-Verylog)
-- Development: Vivado 2018.1, SystemVerilog, Visual Studio Code, XSim, Digilent FPGA Utility
-- Board: [Digilent Basys 3](https://digilent.com/reference/programmable-logic/basys-3/start)
-- Original timing-data sources: [Texas Instruments SN74HC74](https://www.ti.com/lit/gpn/sn74hc74), [SN74HC04](https://www.ti.com/lit/ds/symlink/sn74hc04.pdf), [SN74HC08](https://www.ti.com/lit/gpn/sn74hc08), [SN74HC32](https://www.ti.com/lit/gpn/sn74hc32)
+## 10. Limitaciones y mejoras futuras
+
+- Los interruptores simulan el teclado y el detector de vehículos; falta integrar sensores y actuadores externos para controlar una barrera real.
+- El filtrado antirrebote y la captura de un evento por activación mejoran la operación manual, pero no almacenan una cola ordenada si se ingresan varias letras en el mismo intervalo de 250 ms.
+- Los testbenches utilizan parámetros temporales reducidos para evitar simulaciones innecesariamente largas; las capturas de ondas deben interpretarse con esa configuración.
+- Falta conservar una captura específica de la salida `PASS` completa de XSim para dejar evidencia inequívoca de todas las pruebas automatizadas.
+- Es recomendable generar y guardar el **Report Utilization** de la implementación final y los reportes de temporización completos.
+- El archivo `.bit` se carga en memoria de configuración volátil. Para conservarlo tras apagar la placa se necesitaría una configuración de arranque desde memoria flash.
+- En una versión destinada a un estacionamiento real sería necesario incluir protecciones de seguridad, control de un motor y verificación de fallos del sensor.
+
+## 11. Conclusiones
+
+El proyecto permitió pasar de un circuito de compuertas en Logisim a un sistema secuencial descrito en SystemVerilog e implementado en una FPGA real. Las FSM Mealy y Moore separan la validación del código y el control de la barrera, lo que facilita entender el funcionamiento y realizar pruebas por partes.
+
+El análisis de componentes DigiKey complementa el diseño al mostrar cómo se calculan las restricciones de **setup, hold y frecuencia máxima** con retardos de componentes comerciales. Por otro lado, Vivado permitió realizar síntesis, colocación, enrutamiento y comprobación temporal para una implementación muy distinta: la FPGA Artix-7. Mantener ambos análisis separados evita confundir una estimación teórica de compuertas discretas con un reporte de temporización de FPGA.
+
+La generación del bitstream y la programación exitosa de la Basys 3 demuestran que el diseño pudo llevarse al hardware. Quedan como tareas de documentación la captura final del `PASS` de simulación y el reporte de utilización de la versión con antirrebote.
+
+## 12. Referencias
+
+- [Repositorio FSM-Parking-Verylog](https://github.com/Josemedinan/FSM-Parking-Verylog)
+- [Documentación oficial de Digilent Basys 3](https://digilent.com/reference/programmable-logic/basys-3/start)
+- [DigiKey Electronics: catálogo de componentes](https://www.digikey.com/)
+- [Texas Instruments, SN74HC74](https://www.ti.com/lit/gpn/sn74hc74)
+- [Texas Instruments, SN74HC04](https://www.ti.com/lit/ds/symlink/sn74hc04.pdf)
+- [Texas Instruments, SN74HC08](https://www.ti.com/lit/gpn/sn74hc08)
+- [Texas Instruments, SN74HC32](https://www.ti.com/lit/gpn/sn74hc32)
+- [Análisis temporal detallado de los componentes SN74HC](docs/ANALISIS_TEMPORAL_SN74HC.md)
+- [Evidencias y explicaciones de las etapas FPGA](docs/EVIDENCIAS_FPGA.md)
