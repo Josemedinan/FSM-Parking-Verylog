@@ -19,6 +19,8 @@ Para poder usar interruptores reales en la FPGA se agregó una etapa de **sincro
 
 **Alcance físico:** los interruptores de la Basys 3 simulan el teclado y la presencia de un vehículo. Los LEDs muestran los estados. No se conectó un sensor automotriz externo, un motor ni un actuador de barrera.
 
+
+## https://youtu.be/tzXl0J6Dwy0 Enkace de explicacion
 ## 2. Demostración física y resultados generales
 
 <p align="center">
