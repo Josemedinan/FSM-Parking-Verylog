@@ -1,0 +1,15 @@
+{
+  "files.associations": {
+    "*.sv": "systemverilog",
+    "*.svh": "systemverilog",
+    "*.xdc": "tcl"
+  },
+  "files.exclude": {
+    "**/.Xil": true,
+    "**/*.runs": true,
+    "**/*.cache": true,
+    "**/*.sim": true
+  },
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true
+}

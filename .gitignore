@@ -1,0 +1,31 @@
+# Vivado/XSim generated output - do not version these
+.Xil/
+*.Xil/
+*.cache/
+*.runs/
+*.sim/
+*.hw/
+*.ip_user_files/
+*.gen/
+*.srcs/
+*.xpr
+*.jou
+*.log
+*.str
+*.wdb
+*.vcd
+*.pb
+*.dcp
+*.bit
+*.bin
+*.ltx
+*.db
+webtalk*
+usage_statistics_webtalk*
+
+# Local shell/editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/.history/
+__pycache__/
+build/

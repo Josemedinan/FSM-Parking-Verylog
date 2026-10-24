@@ -1,6 +1,7 @@
 `timescale 1ns/1ps
+// Test de la FSM original: CE=1 equivale a un avance por cada reloj.
 module testbench;
-    logic CLK = 0, RST = 1, SENSOR = 0, A = 0, B = 0, C = 0;
+    logic CLK = 0, RST = 1, CE = 1, SENSOR = 0, A = 0, B = 0, C = 0;
     wire CERRADA, ABRIENDO, ABIERTA, CERRANDO;
     wire CODIGO_OK, ALARMA, PASO_1, PASO_2, Q1, Q0;
     top dut (.*);
@@ -26,7 +27,6 @@ module testbench;
         if (!PASO_1) $fatal(1,"No se registro A");
         tecla(0,0,1); // C
         if (!PASO_2) $fatal(1,"No se registro A,C");
-        // B da CODIGO_OK combinacionalmente, antes del flanco de subida.
         @(negedge CLK);
         B = 1;
         #1;
@@ -41,7 +41,7 @@ module testbench;
         SENSOR = 1;
         @(posedge CLK);
         #1;
-        if (!ABIERTA) $fatal(1,"Con SENSOR=1 la barrera debe permanecer abierta");
+        if (!ABIERTA) $fatal(1,"Con SENSOR=1 debe permanecer abierta");
         @(negedge CLK); SENSOR=0;
         @(posedge CLK);
         #1;
